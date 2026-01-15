@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8">
+    <title>Untitled</title>
+    
+
+  </head>
+    
+  <body>
+  <!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>早春圖：墨色登高</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #e8dcc4; /* 仿古絹布色 */
+            font-family: "Microsoft JhengHei", sans-serif;
+            touch-action: none;
+        }
+        canvas {
+            display: block;
+        }
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #3e3a35;
+            pointer-events: none;
+        }
+        #msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #3e3a35;
+            background: rgba(232, 220, 196, 0.8);
+            padding: 20px;
+            border: 2px solid #3e3a35;
+            display: block;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 18px;
+            background: #3e3a35;
+            color: #e8dcc4;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div style="font-size: 20px; font-weight: bold;">早春圖：登高</div>
+    <div id="score">海拔：0 丈</div>
+</div>
+
+<div id="msg">
+    <h2>郭熙《早春圖》</h2>
+    <p>「早春壬子年郭熙畫」</p>
+    <p>點擊畫面跳躍，踏著雲頭皴向上前行。<br>體現「可行、可望、可居、可遊」。</p>
+    <button onclick="startGame()">開始行旅</button>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreElement = document.getElementById('score');
+    const msgBox = document.getElementById('msg');
+
+    let gameActive = false;
+    let score = 0;
+    let cameraY = 0;
+
+    // 遊戲參數
+    const player = {
+        x: 0,
+        y: 0,
+        width: 20,
+        height: 30,
+        vy: 0,
+        vx: 0,
+        jumpPower: -12,
+        gravity: 0.5
+    };
+
+    let platforms = [];
+    const platformWidth = 80;
+    const platformHeight = 15;
+
+    function init() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        player.x = canvas.width / 2;
+        player.y = canvas.height - 100;
+        player.vy = 0;
+        score = 0;
+        cameraY = 0;
+        
+        platforms = [];
+        // 初始平台
+        for (let i = 0; i < 7; i++) {
+            spawnPlatform(canvas.height - i * (canvas.height / 6));
+        }
+    }
+
+    function spawnPlatform(y) {
+        platforms.push({
+            x: Math.random() * (canvas.width - platformWidth),
+            y: y,
+            width: platformWidth + Math.random() * 40,
+            type: Math.random() > 0.8 ? 'moving' : 'static'
+        });
+    }
+
+    function drawInkRock(x, y, w, h) {
+        ctx.fillStyle = '#3e3a35';
+        ctx.beginPath();
+        // 模擬雲頭皴的圓潤感
+        ctx.ellipse(x + w/2, y + h/2, w/2, h, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // 加一點淡墨邊緣
+        ctx.strokeStyle = '#6d665e';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
+    function drawTraveler(x, y) {
+        // 畫一個簡單的斗笠行旅者小點
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.arc(x, y - 20, 5, 0, Math.PI * 2); // 頭
+        ctx.fill();
+        ctx.fillRect(x - 5, y - 15, 10, 15); // 身
+    }
+
+    function update() {
+        if (!gameActive) return;
+
+        player.vy += player.gravity;
+        player.y += player.vy;
+
+        // 左右自動移動（根據點擊位置）
+        player.x += player.vx;
+        
+        // 邊界檢查
+        if (player.x < 0) player.x = canvas.width;
+        if (player.x > canvas.width) player.x = 0;
+
+        // 相機跟隨
+        if (player.y < canvas.height / 2 + cameraY) {
+            cameraY = player.y - canvas.height / 2;
+        }
+
+        // 碰撞檢測
+        if (player.vy > 0) {
+            platforms.forEach(p => {
+                if (player.x > p.x && player.x < p.x + p.width &&
+                    player.y > p.y && player.y < p.y + p.height) {
+                    player.vy = player.jumpPower;
+                    score = Math.max(score, Math.floor((canvas.height - player.y) / 10));
+                }
+            });
+        }
+
+        // 生成新平台
+        if (platforms[platforms.length - 1].y > cameraY - 100) {
+            spawnPlatform(platforms[platforms.length - 1].y - 120);
+        }
+
+        // 移除舊平台
+        if (platforms[0].y > cameraY + canvas.height + 100) {
+            platforms.shift();
+        }
+
+        // 遊戲結束
+        if (player.y > cameraY + canvas.height) {
+            gameOver();
+        }
+
+        draw();
+        requestAnimationFrame(update);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(0, -cameraY);
+
+        // 繪製背景煙嵐感（簡單漸層）
+        let grd = ctx.createLinearGradient(0, cameraY, 0, cameraY + canvas.height);
+        grd.addColorStop(0, "#dcd0b8");
+        grd.addColorStop(1, "#e8dcc4");
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, cameraY, canvas.width, canvas.height);
+
+        // 繪製平台（山石）
+        platforms.forEach(p => {
+            drawInkRock(p.x, p.y, p.width, platformHeight);
+        });
+
+        // 繪製玩家
+        drawTraveler(player.x, player.y);
+
+        ctx.restore();
+        scoreElement.innerText = `海拔：${score} 丈`;
+    }
+
+    function startGame() {
+        msgBox.style.display = 'none';
+        gameActive = true;
+        init();
+        update();
+    }
+
+    function gameOver() {
+        gameActive = false;
+        msgBox.innerHTML = `<h2>氣絕力竭</h2><p>你在早春山雨中行走至 ${score} 丈</p><button onclick="startGame()">重返山林</button>`;
+        msgBox.style.display = 'block';
+    }
+
+    // 手機控制
+    window.addEventListener('touchstart', (e) => {
+        if (!gameActive) return;
+        const touchX = e.touches[0].clientX;
+        if (touchX < canvas.width / 2) {
+            player.vx = -5;
+        } else {
+            player.vx = 5;
+        }
+    });
+
+    window.addEventListener('touchend', () => {
+        player.vx = 0;
+    });
+
+    // 視窗縮放處理
+    window.addEventListener('resize', init);
+
+    init();
+    draw();
+</script>
+</body>
+</html>
+    
+  </body>
+  
+</html>
